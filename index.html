@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>HearSee Pro</title>
+    <style>
+        /* --- 1. GLOBAL STYLES --- */
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-primary: #ffffff;
+            --text-secondary: #b0bec5;
+            --accent: #00e676; /* Bright Green */
+            --danger: #ff1744; /* Bright Red */
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- 2. HEADER & TABS --- */
+        header {
+            background-color: #000;
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+        
+        .status-dot {
+            height: 10px; width: 10px;
+            background-color: #555;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-active { background-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+        nav {
+            display: flex;
+            background: #000;
+        }
+
+        .nav-btn {
+            flex: 1;
+            padding: 15px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid #333;
+            color: #777;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .nav-btn.active {
+            color: var(--accent);
+            border-bottom: 3px solid var(--accent);
+        }
+
+        /* --- 3. MAIN CONTENT --- */
+        main {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .screen.visible { display: flex; }
+
+        /* --- SCREEN: LISTEN --- */
+        #transcript-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Text starts at bottom */
+        }
+
+        .message-line {
+            font-size: 1.8rem;
+            margin: 10px 0;
+            line-height: 1.4;
+        }
+        
+        .final { color: #fff; }
+        .interim { color: var(--accent); font-style: italic; }
+
+        /* --- SCREEN: SPEAK --- */
+        textarea {
+            width: 100%;
+            height: 120px;
+            background: var(--card-bg);
+            border: 1px solid #333;
+            color: #fff;
+            font-size: 1.4rem;
+            padding: 10px;
+            border-radius: 8px;
+            resize: none;
+            box-sizing: border-box; 
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .quick-btn {
+            background: var(--card-bg);
+            border: 1px solid #333;
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+        .quick-btn:active { background: var(--accent); color: #000; }
+
+        .action-btn {
+            background: var(--accent);
+            color: #000;
+            font-weight: bold;
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 1.2rem;
+        }
+
+        /* --- SCREEN: SAFETY --- */
+        .safety-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-color);
+            transition: background-color 0.2s;
+            border-radius: 12px;
+        }
+
+        .decibel-readout { font-size: 4rem; font-weight: bold; }
+        .safety-status { font-size: 1.5rem; color: #888; margin-top: 10px; }
+
+        /* --- 4. BOTTOM CONTROL --- */
+        footer {
+            padding: 15px;
+            background: #000;
+            text-align: center;
+        }
+
+        #master-switch {
+            width: 100%;
+            padding: 15px;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            background-color: #333;
+            color: #fff;
+            cursor: pointer;
+        }
+        
+        #master-switch.active { background-color: var(--danger); }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div><span class="status-dot" id="dot"></span> HearSee Pro</div>
+    </header>
+
+    <nav>
+        <button class="nav-btn active" onclick="setTab('listen')">👂 Listen</button>
+        <button class="nav-btn" onclick="setTab('speak')">🗣️ Speak</button>
+        <button class="nav-btn" onclick="setTab('safety')">⚠️ Safety</button>
+    </nav>
+
+    <main>
+        <div id="listen" class="screen visible">
+            <div style="color:#777; text-align:center; padding-top:20px;" id="listen-hint">
+                Press "Start System" below to begin transcription.
+            </div>
+            <div id="transcript-box">
+                <div id="final-text"></div>
+                <div id="interim-text" class="message-line interim"></div>
+            </div>
+        </div>
+
+        <div id="speak" class="screen">
+            <textarea id="tts-input" placeholder="Type here..."></textarea>
+            <button class="action-btn" onclick="speakManual()">🔊 Speak</button>
+            
+            <div class="grid-container">
+                <button class="quick-btn" onclick="speakPhrase('I am deaf. Please read this screen.')">"I am Deaf"</button>
+                <button class="quick-btn" onclick="speakPhrase('Could you please repeat that?')">"Repeat?"</button>
+                <button class="quick-btn" onclick="speakPhrase('Yes')">Yes</button>
+                <button class="quick-btn" onclick="speakPhrase('No')">No</button>
+            </div>
+        </div>
+
+        <div id="safety" class="screen">
+            <div class="safety-container" id="safety-bg">
+                <div class="decibel-readout" id="db-display">Safe</div>
+                <div class="safety-status" id="safety-msg">Monitoring Noise Levels</div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <button id="master-switch" onclick="toggleSystem()">START SYSTEM</button>
+    </footer>
+
+    <script>
+        // --- GLOBAL VARIABLES ---
+        let isSystemOn = false;
+        let recognition;
+        let audioContext;
+        let analyzer;
+        let microphone;
+        let animationFrame;
+        
+        // Configuration
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const mainBtn = document.getElementById('master-switch');
+        const statusDot = document.getElementById('dot');
+
+        // --- 1. TAB LOGIC ---
+        function setTab(tabName) {
+            // Update buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update screens
+            document.querySelectorAll('.screen').forEach(scr => scr.classList.remove('visible'));
+            document.getElementById(tabName).classList.add('visible');
+        }
+
+        // --- 2. SPEECH RECOGNITION (LISTENER) ---
+        function initSpeech() {
+            if (!SpeechRecognition) {
+                alert("Speech Recognition not supported in this browser. Use Chrome.");
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false; // CHANGED to false for better stability on mobile
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = function() {
+                document.getElementById('listen-hint').style.display = 'none';
+            };
+
+            recognition.onresult = function(event) {
+                let interim = '';
+                let final = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final += event.results[i][0].transcript;
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+
+                // Render Final Text (Add new line)
+                if (final) {
+                    const finalDiv = document.getElementById('final-text');
+                    const p = document.createElement('div');
+                    p.className = 'message-line final';
+                    p.innerText = final;
+                    finalDiv.appendChild(p);
+                    // Auto scroll
+                    const box = document.getElementById('listen');
+                    box.scrollTop = box.scrollHeight;
+                }
+
+                // Render Interim Text
+                document.getElementById('interim-text').innerText = interim;
+            };
+
+            // THE "KEEP-ALIVE" FIX
+            recognition.onend = function() {
+                if (isSystemOn) {
+                    try {
+                        recognition.start();
+                    } catch(e) {
+                        console.log("Restarting speech engine...");
+                    }
+                }
+            };
+        }
+
+        // --- 3. AUDIO VISUALIZER (SAFETY) ---
+        async function initAudio() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                // Resume if suspended (Common mobile issue)
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = audioContext.createMediaStreamSource(stream);
+                analyzer = audioContext.createAnalyser();
+                analyzer.fftSize = 256;
+                microphone.connect(analyzer);
+
+                detectVolume(); // Start the loop
+            } catch (err) {
+                console.error("Audio Access Denied: " + err);
+            }
+        }
+
+        function detectVolume() {
+            if (!isSystemOn) return;
+
+            const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+            analyzer.getByteFrequencyData(dataArray);
+
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            let average = sum / dataArray.length;
+
+            updateSafetyUI(average);
+
+            animationFrame = requestAnimationFrame(detectVolume);
+        }
+
+        function updateSafetyUI(volume) {
+            const bg = document.getElementById('safety-bg');
+            const display = document.getElementById('db-display');
+            const msg = document.getElementById('safety-msg');
+
+            // Sensitivity Logic
+            if (volume > 50) { // High Noise
+                bg.style.backgroundColor = 'var(--danger)';
+                display.innerText = "LOUD NOISE";
+                msg.innerText = "Check your surroundings!";
+            } else if (volume > 20) { // Medium Noise
+                bg.style.backgroundColor = '#ff9800'; // Orange
+                display.innerText = "Alert";
+                msg.innerText = "Sound detected";
+            } else { // Quiet
+                bg.style.backgroundColor = 'var(--bg-color)';
+                display.innerText = "Safe";
+                msg.innerText = "Monitoring...";
+            }
+        }
+
+        // --- 4. TEXT TO SPEECH (SPEAK) ---
+        function speakManual() {
+            const text = document.getElementById('tts-input').value;
+            speakPhrase(text);
+        }
+
+        function speakPhrase(text) {
+            if (!text) return;
+            
+            // Cancel current speech to speak new one immediately
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.pitch = 1;
+            utterance.rate = 1;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- 5. MASTER CONTROLLER ---
+        function toggleSystem() {
+            if (!isSystemOn) {
+                // START SYSTEM
+                isSystemOn = true;
+                mainBtn.innerText = "STOP SYSTEM";
+                mainBtn.classList.add('active');
+                statusDot.classList.add('status-active');
+
+                // Initialize both engines
+                if (!recognition) initSpeech();
+                try {
+                    recognition.start();
+                } catch(e) {}
+                
+                initAudio();
+
+            } else {
+                // STOP SYSTEM
+                isSystemOn = false;
+                mainBtn.innerText = "START SYSTEM";
+                mainBtn.classList.remove('active');
+                statusDot.classList.remove('status-active');
+
+                if (recognition) recognition.stop();
+                if (audioContext) audioContext.suspend();
+                cancelAnimationFrame(animationFrame);
+                
+                // Reset Visuals
+                document.getElementById('safety-bg').style.backgroundColor = 'var(--bg-color)';
+                document.getElementById('db-display').innerText = "Safe";
+            }
+        }
+    </script>
+</body>
+</html>
